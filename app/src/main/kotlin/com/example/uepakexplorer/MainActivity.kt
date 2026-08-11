@@ -27,7 +27,7 @@ class MainActivity : Activity() {
         root.addView(Button(this).apply { text = "Open PAK"; setOnClickListener { choosePak() } })
         status = TextView(this).apply { text = "No PAK opened"; setPadding(0,16,0,8) }; root.addView(status)
         info = TextView(this); root.addView(info)
-        searchInput = EditText(this).apply { hint = "Search: Game.locres / Localization / Fonts"; singleLine = true; visibility = View.GONE }; root.addView(searchInput)
+        searchInput = EditText(this).apply { hint = "Search: Game.locres / Localization / Fonts"; setSingleLine(true); visibility = View.GONE }; root.addView(searchInput)
         searchRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; visibility = View.GONE }
         searchRow.addView(Button(this).apply { text = "Search"; setOnClickListener { doSearch() } }, LinearLayout.LayoutParams(0,-2,1f))
         searchRow.addView(Button(this).apply { text = "Extract"; setOnClickListener { if (selectedPath == null) toast("Select a file first") else chooseOutput() } }, LinearLayout.LayoutParams(0,-2,1f))
