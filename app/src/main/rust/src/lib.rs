@@ -64,12 +64,12 @@ pub extern "system" fn Java_com_example_uepakexplorer_NativePak_openPak(
 pub extern "system" fn Java_com_example_uepakexplorer_NativePak_closePak(_env: JNIEnv, _class: JClass) {
     *SESSION.lock().unwrap() = None;
 }
-
+let q: String = env.get_string(&query).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default().to_lowercase();
 #[no_mangle]
 pub extern "system" fn Java_com_example_uepakexplorer_NativePak_search(
-    mut env: JNIEnv, _class: JClass, query: JString, extension: JString
+   mut env: JNIEnv, _class: JClass, query: JString, extension: JString
 ) -> jstring {
-    let q: String = env.get_string(&query).map(|s| s.into()).unwrap_or_default().to_lowercase();
+    let q: String = env.get_string(&query).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default().to_lowercase();
     let ext: String = env.get_string(&extension).map(|s| s.into()).unwrap_or_default().to_lowercase();
     let guard = SESSION.lock().unwrap();
     let Some(s) = guard.as_ref() else { return js(&mut env, "[]".into()); };
