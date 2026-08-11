@@ -72,7 +72,8 @@ pub extern "system" fn Java_com_example_uepakexplorer_NativePak_search(
     let ext: String = env.get_string(&extension).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default().to_lowercase();
     let guard = SESSION.lock().unwrap();
     let Some(s) = guard.as_ref() else { return js(&mut env, "[]".into()); };
-    let results: Vec<&str> = s.pak.files().iter().filter(|p| {
+    let files = s.pak.files();
+    let results: Vec<&str> = files.iter().filter(|p| {
         let pl = p.to_lowercase();
         let name_ok = q.is_empty() || pl.contains(&q);
         let ext_ok = ext.is_empty() || pl.ends_with(&ext);
