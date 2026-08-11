@@ -1,0 +1,15 @@
+[package]
+name = "uepak"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+name = "uepak"
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+serde_json = "1.0"
+aes = "0.8"
+hex = "0.4"
+repak = { git = "https://github.com/trumank/repak.git", tag = "v0.2.3", default-features = true }
