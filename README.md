@@ -1,72 +1,73 @@
-# UE PAK Explorer — Android MVP
+# UE PAK Explorer — Android
 
-تطبيق Android أصلي لقراءة واستكشاف Unreal Engine `.pak` بدون Root أو Winlator أو Windows/.NET/Python Runtime.
+A lightweight native Android tool for browsing, searching, and extracting Unreal Engine PAK files.
 
-## أهم شيء للمستخدم غير المبرمج
+## ✨ Features
 
-لا تحتاج Android Studio لبناء النسخة من GitHub.
+- Open Unreal Engine `.pak` files directly on Android.
+- Browse files and folders stored inside PAK archives.
+- Search files by name, extension, or path.
+- View file size and PAK archive information.
+- Extract individual files or multiple files.
+- Copy internal file paths.
+- Detect PAK encryption when possible.
+- Designed to work without Root access.
+- Uses Android Storage Access Framework for secure file access.
+- Designed for modern ARM64 Android devices.
 
-1. ارفع هذا المجلد إلى مستودع GitHub جديد.
-2. افتح تبويب **Actions**.
-3. اختر **Build APK**.
-4. اضغط **Run workflow**.
-5. بعد انتهاء البناء افتح الـworkflow ثم **Artifacts**.
-6. حمّل `UE-Pak-Explorer-arm64` وستجد APK جاهزًا لجهاز ARM64.
+## 🎯 Purpose
 
-## التقنية
+UE PAK Explorer is a general-purpose Android tool for inspecting Unreal Engine PAK archives.
 
-- Kotlin + Android SDK
-- Target SDK 36 / Android 16
-- ARM64 (`arm64-v8a`)
-- Rust + JNI
-- `repak v0.2.3` من GitHub
+It is designed for anyone who needs to explore the contents of Unreal Engine files, including developers, modders, translators, researchers, and game enthusiasts.
+
+The goal is to provide a simple and accessible way to inspect PAK archives directly on Android.
+
+## 🚧 Current Status
+
+The project is currently in the MVP stage.
+
+The initial version focuses on:
+
+**Open → Browse → Search → Extract**
+
+More advanced features will be added after the core PAK reading functionality is stable.
+
+## 🛠️ Technology
+
+- Kotlin
+- Android SDK
+- Rust
+- JNI
+- Unreal Engine PAK parser
 - Android Storage Access Framework
-- لا يتم تحميل PAK كاملًا إلى RAM؛ repak يقرأ الـindex أولًا ويقرأ بيانات الملف عند الاستخراج.
+- ARM64
 
-repak يدعم قراءة PAK versions 2–5 و7–9 و11، ويقرأ PAKs المضغوطة والمشفرة. الإصدار 3 تحديدًا يدعم UE4.3–4.15 بحسب جدول التوافق upstream.
+## 🔐 Encryption
 
-## حالة ملفات GTA Vice City Definitive Edition المرفوعة للاختبار
+The application can detect encrypted PAK archives when possible.
 
-تم فحص الملفين الحقيقيين محليًا.
+It does not attempt to bypass or break encryption.
 
-### arabic.pak
+If a valid encryption key is provided by the user and supported by the parser, it may be used for legitimate file inspection.
 
-- الحجم: حوالي 29.9 MiB
-- PAK Version: **3**
-- Mount point: `../../../`
-- عدد الملفات: **22**
-- الـIndex غير مشفر
-- كل الإدخالات التي فُحصت غير مضغوطة
-- يحتوي على:
-  - 19 ملف `.ufont`
-  - ملفي `Game.locres`
+## 📦 Planned Features
 
-المساران الموجودان فعليًا:
+- Unreal Engine `.locres` inspection
+- Localization file parsing
+- File metadata viewer
+- Advanced file and path search
+- JSON and TXT export
+- Improved file tree navigation
+- Support for additional Unreal Engine PAK versions
+- Support for additional Unreal Engine archive formats
 
-```text
-Gameface/Content/Localization/GTACommon/Game/en/Game.locres
-Gameface/Content/Localization/GTAVC/Game/en/Game.locres
-```
+## 🤝 Open Source
 
-### arabic2.pak
+This project is open source and is intended to be useful to the Android, Unreal Engine, modding, localization, and game-research communities.
 
-- الحجم: حوالي 742 KiB
-- PAK Version: **3**
-- Mount point: `../../../`
-- عدد الملفات: **7**
-- الـIndex غير مشفر
-- الإدخالات غير مضغوطة
-- يحتوي على خطوط Unreal Engine الأساسية `.ufont`
+Contributions, bug reports, and improvements are welcome.
 
-## حدود MVP
+## 📄 License
 
-هذه النسخة لا تعيد بناء PAK، ولا تحلل `.locres` بعد. الهدف الحالي:
-
-**Open → Parse → Browse → Search → Extract**
-
-دعم Oodle سيُضاف فقط إذا ظهر في ملفات اللعبة كضغط فعلي؛ الملفات المرفوعة حاليًا لا تحتاج Oodle للاستخراج.
-
-## الترخيص
-
-كود التطبيق: MIT.
-`repak` مرخص وفق MIT/Apache-2.0؛ راجع مستودع repak قبل توزيع نسخة نهائية.
+MIT License
