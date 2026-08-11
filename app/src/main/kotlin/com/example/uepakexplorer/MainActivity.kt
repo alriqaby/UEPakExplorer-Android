@@ -23,7 +23,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,24,24,24) }
-        root.addView(TextView(this).apply { text = "UE PAK Explorer"; textSize = 24f; setPadding(0,0,0,16) })
+        root.addView(TextView(this).apply { text = "UEPak Explorer"; textSize = 24f; setPadding(0,0,0,16) })
         root.addView(Button(this).apply { text = "Open PAK"; setOnClickListener { choosePak() } })
         status = TextView(this).apply { text = "No PAK opened"; setPadding(0,16,0,8) }; root.addView(status)
         info = TextView(this); root.addView(info)

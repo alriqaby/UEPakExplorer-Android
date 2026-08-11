@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:theme="@style/AppTheme"
-        android:label="UE PAK Explorer"
+        android:label="UEPak Explorer" android:icon="@drawable/uepak_explorer"
         android:allowBackup="false"
         android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true">

@@ -17,6 +17,12 @@ android {
     }
 
     buildFeatures { buildConfig = true }
+
+buildTypes {
+    getByName("release") {
+        signingConfig = signingConfigs.getByName("debug")
+    }
+}
     packaging { jniLibs { useLegacyPackaging = false } }
 }
 
