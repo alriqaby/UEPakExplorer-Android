@@ -23,7 +23,7 @@ class MainActivity : Activity() {
     private lateinit var searchInput: EditText
     private lateinit var results: LinearLayout
     private lateinit var searchRow: LinearLayout
-    private lateinit var themeButton: TextView
+    private lateinit var themeButton: ImageButton
 
     private var selectedResultView: LinearLayout? = null
     private val resultItems = mutableListOf<LinearLayout>()
@@ -66,6 +66,7 @@ class MainActivity : Activity() {
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
         }
 
         val titleBox = LinearLayout(this).apply {
@@ -88,11 +89,10 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(0, -2, 1f)
         )
 
-        themeButton = TextView(this).apply {
-            textSize = 22f
-            gravity = android.view.Gravity.CENTER
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            setTypeface(null, android.graphics.Typeface.NORMAL)
+        themeButton = ImageButton(this).apply {
+            scaleType = ImageView.ScaleType.CENTER
+            setPadding(dp(9), dp(9), dp(9), dp(9))
+            contentDescription = "Toggle light and dark mode"
 
             setOnClickListener {
                 darkMode = !darkMode
@@ -102,7 +102,9 @@ class MainActivity : Activity() {
 
         topBar.addView(
             themeButton,
-            LinearLayout.LayoutParams(dp(52), dp(52))
+            LinearLayout.LayoutParams(dp(44), dp(44)).apply {
+                marginStart = dp(8)
+            }
         )
 
         root.addView(
@@ -197,7 +199,7 @@ class MainActivity : Activity() {
             0,
             1f
         )
-        scrollParams.topMargin = dp(12)
+        scrollParams.topMargin = dp(14)
 
         root.addView(scroll, scrollParams)
 
@@ -235,12 +237,22 @@ class MainActivity : Activity() {
         searchInput.setHintTextColor(secondaryText)
         searchInput.setBackgroundColor(surface)
 
-        themeButton.text = if (darkMode) "☀" else "☾"
-        themeButton.setTextColor(primaryText)
+        themeButton.setImageResource(
+            if (darkMode)
+                com.example.uepakexplorer.R.drawable.ic_light_mode
+            else
+                com.example.uepakexplorer.R.drawable.ic_dark_mode
+        )
+
+        themeButton.setColorFilter(
+            primaryText,
+            android.graphics.PorterDuff.Mode.SRC_IN
+        )
 
         themeButton.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
+            shape = GradientDrawable.RECTANGLE
             setColor(surface)
+            cornerRadius = dp(12).toFloat()
             setStroke(
                 dp(1),
                 if (darkMode)
@@ -285,10 +297,6 @@ class MainActivity : Activity() {
     ) {
         if (view is TextView) {
             when {
-                view === themeButton -> {
-                    view.setTextColor(primary)
-                }
-
                 view === searchInput -> {
                     view.setTextColor(primary)
                     view.setHintTextColor(secondary)
@@ -508,7 +516,7 @@ class MainActivity : Activity() {
             text = parentPath
             textSize = 12f
             maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.START
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
             setPadding(0, dp(3), 0, 0)
         }
 
@@ -583,7 +591,7 @@ class MainActivity : Activity() {
                 selected = true
             )
 
-            status.text = "Selected: $path"
+            status.text = "Selected: $fileName"
         }
     }
 
