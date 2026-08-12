@@ -25,6 +25,9 @@ class MainActivity : Activity() {
     private lateinit var searchRow: LinearLayout
     private lateinit var themeButton: TextView
 
+    private var selectedResultView: LinearLayout? = null
+    private val resultItems = mutableListOf<LinearLayout>()
+
     private var darkMode = false
 
     private val bgLight = Color.parseColor("#F6F7F9")
@@ -88,7 +91,9 @@ class MainActivity : Activity() {
         themeButton = TextView(this).apply {
             textSize = 22f
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(10), dp(8), dp(10), dp(8))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setTypeface(null, android.graphics.Typeface.NORMAL)
+
             setOnClickListener {
                 darkMode = !darkMode
                 applyTheme()
@@ -230,8 +235,20 @@ class MainActivity : Activity() {
         searchInput.setHintTextColor(secondaryText)
         searchInput.setBackgroundColor(surface)
 
-        themeButton.text = if (darkMode) "☀️" else "🌙"
+        themeButton.text = if (darkMode) "☀" else "☾"
         themeButton.setTextColor(primaryText)
+
+        themeButton.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(surface)
+            setStroke(
+                dp(1),
+                if (darkMode)
+                    Color.parseColor("#383838")
+                else
+                    Color.parseColor("#D9DDE3")
+            )
+        }
 
         window.statusBarColor = bg
         window.navigationBarColor = bg
@@ -248,6 +265,17 @@ class MainActivity : Activity() {
         updateTextColors(root, primaryText, secondaryText)
 
         updateButtons(root, accent, surface)
+
+        resultItems.forEach { item ->
+            val textBox = item.getChildAt(1) as LinearLayout
+            styleResultItem(
+                item,
+                textBox.getChildAt(0) as TextView,
+                textBox.getChildAt(1) as TextView,
+                item.getChildAt(0) as TextView,
+                selected = item === selectedResultView
+            )
+        }
     }
 
     private fun updateTextColors(
@@ -255,20 +283,34 @@ class MainActivity : Activity() {
         primary: Int,
         secondary: Int
     ) {
-        when (view) {
-            is TextView -> {
-                if (view !== themeButton &&
-                    view !== searchInput &&
-                    view !is Button
-                ) {
+        if (view is TextView) {
+            when {
+                view === themeButton -> {
+                    view.setTextColor(primary)
+                }
+
+                view === searchInput -> {
+                    view.setTextColor(primary)
+                    view.setHintTextColor(secondary)
+                }
+
+                view is Button -> {
+                    // Button colors are handled by updateButtons()
+                }
+
+                else -> {
                     view.setTextColor(primary)
                 }
             }
         }
 
-        if (view is LinearLayout) {
+        if (view is android.view.ViewGroup) {
             for (i in 0 until view.childCount) {
-                updateTextColors(view.getChildAt(i), primary, secondary)
+                updateTextColors(
+                    view.getChildAt(i),
+                    primary,
+                    secondary
+                )
             }
         }
     }
@@ -397,6 +439,9 @@ class MainActivity : Activity() {
 
     private fun showFiles(array: JSONArray) {
         results.removeAllViews()
+        resultItems.clear()
+        selectedResultView = null
+        selectedPath = null
 
         val limit = minOf(array.length(), 5000)
 
@@ -416,32 +461,190 @@ class MainActivity : Activity() {
     }
 
     private fun addResult(path: String) {
-        val item = TextView(this).apply {
-            text = path
-            textSize = 14f
-            setPadding(dp(12), dp(14), dp(12), dp(14))
-
-            setOnClickListener {
-                selectedPath = path
-                status.text = "Selected: $path"
-            }
+        val fileName = path.substringAfterLast('/').ifEmpty {
+            path
         }
 
-        results.addView(item)
+        val parentPath = path
+            .substringBeforeLast('/', "")
+            .let {
+                if (it.isEmpty()) "Root" else "$it/"
+            }
 
-        val divider = View(this).apply {
-            setBackgroundColor(
-                if (darkMode)
-                    Color.parseColor("#303030")
-                else
-                    Color.parseColor("#E0E0E0")
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+
+            setPadding(
+                dp(14),
+                dp(12),
+                dp(14),
+                dp(12)
             )
         }
 
-        results.addView(
-            divider,
-            LinearLayout.LayoutParams(-1, 1)
+        val icon = TextView(this).apply {
+            text = "📄"
+            textSize = 20f
+            gravity = android.view.Gravity.CENTER
+        }
+
+        val textBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val nameView = TextView(this).apply {
+            text = fileName
+            textSize = 15f
+            setTypeface(
+                null,
+                android.graphics.Typeface.BOLD
+            )
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+
+        val pathView = TextView(this).apply {
+            text = parentPath
+            textSize = 12f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.START
+            setPadding(0, dp(3), 0, 0)
+        }
+
+        textBox.addView(nameView)
+        textBox.addView(pathView)
+
+        item.addView(
+            icon,
+            LinearLayout.LayoutParams(
+                dp(34),
+                dp(44)
+            )
         )
+
+        item.addView(
+            textBox,
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply {
+                marginStart = dp(10)
+            }
+        )
+
+        val params = LinearLayout.LayoutParams(
+            -1,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(4)
+            bottomMargin = dp(4)
+        }
+
+        results.addView(item, params)
+        resultItems.add(item)
+
+        styleResultItem(
+            item,
+            nameView,
+            pathView,
+            icon,
+            selected = false
+        )
+
+        item.setOnClickListener {
+            selectedResultView?.let { previous ->
+                styleResultItem(
+                    previous,
+                    previous.getChildAt(1)
+                        .let { box ->
+                            (box as LinearLayout)
+                                .getChildAt(0)
+                        } as TextView,
+                    previous.getChildAt(1)
+                        .let { box ->
+                            (box as LinearLayout)
+                                .getChildAt(1)
+                        } as TextView,
+                    previous.getChildAt(0) as TextView,
+                    selected = false
+                )
+            }
+
+            selectedPath = path
+            selectedResultView = item
+
+            styleResultItem(
+                item,
+                nameView,
+                pathView,
+                icon,
+                selected = true
+            )
+
+            status.text = "Selected: $path"
+        }
+    }
+
+    private fun styleResultItem(
+        item: LinearLayout,
+        nameView: TextView,
+        pathView: TextView,
+        icon: TextView,
+        selected: Boolean
+    ) {
+        val cardColor = when {
+            selected && darkMode ->
+                Color.parseColor("#263B5C")
+
+            selected ->
+                Color.parseColor("#E8F0FE")
+
+            darkMode ->
+                Color.parseColor("#1E1E1E")
+
+            else ->
+                Color.WHITE
+        }
+
+        val primary = if (darkMode) {
+            Color.WHITE
+        } else {
+            textLight
+        }
+
+        val secondary = if (darkMode) {
+            Color.parseColor("#B8BCC2")
+        } else {
+            secondaryLight
+        }
+
+        nameView.setTextColor(primary)
+        pathView.setTextColor(secondary)
+        icon.setTextColor(primary)
+
+        item.background = GradientDrawable().apply {
+            setColor(cardColor)
+            cornerRadius = dp(12).toFloat()
+
+            setStroke(
+                dp(1),
+                when {
+                    selected && darkMode ->
+                        Color.parseColor("#4D78B8")
+
+                    selected ->
+                        Color.parseColor("#9AB8E8")
+
+                    darkMode ->
+                        Color.parseColor("#303030")
+
+                    else ->
+                        Color.parseColor("#E2E5E9")
+                }
+            )
+        }
     }
 
     private fun doSearch() {
@@ -457,6 +660,9 @@ class MainActivity : Activity() {
 
                 runOnUiThread {
                     results.removeAllViews()
+                    resultItems.clear()
+                    selectedResultView = null
+                    selectedPath = null
 
                     for (i in 0 until json.length()) {
                         addResult(json.optString(i))
