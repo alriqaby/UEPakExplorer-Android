@@ -904,11 +904,6 @@ class MainActivity : Activity() {
                         }
 
                         extracted++
-                    } finally {
-                        try {
-                            android.os.ParcelFileDescriptor.adoptFd(fd).close()
-                        } catch (_: Throwable) {
-                        }
                     }
 
                 } catch (t: Throwable) {
@@ -1110,10 +1105,10 @@ class MainActivity : Activity() {
         }
 
         val parentDocumentUri =
-            if (DocumentsContract.isTreeUri(parentUri)) {
+            if (parentUri == treeUri) {
                 DocumentsContract.buildDocumentUriUsingTree(
                     treeUri,
-                    DocumentsContract.getTreeDocumentId(parentUri)
+                    DocumentsContract.getTreeDocumentId(treeUri)
                 )
             } else {
                 parentUri
@@ -1142,10 +1137,10 @@ class MainActivity : Activity() {
         }
 
         val parentDocumentUri =
-            if (DocumentsContract.isTreeUri(parentUri)) {
+            if (parentUri == treeUri) {
                 DocumentsContract.buildDocumentUriUsingTree(
                     treeUri,
-                    DocumentsContract.getTreeDocumentId(parentUri)
+                    DocumentsContract.getTreeDocumentId(treeUri)
                 )
             } else {
                 parentUri
@@ -1166,8 +1161,8 @@ class MainActivity : Activity() {
         requiredMimeType: String?
     ): Uri? {
         val parentId =
-            if (DocumentsContract.isTreeUri(parentUri)) {
-                DocumentsContract.getTreeDocumentId(parentUri)
+            if (parentUri == treeUri) {
+                DocumentsContract.getTreeDocumentId(treeUri)
             } else {
                 DocumentsContract.getDocumentId(parentUri)
             }
