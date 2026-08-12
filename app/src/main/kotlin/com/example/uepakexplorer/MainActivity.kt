@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.os.Bundle
 import android.view.View
 import android.widget.*
@@ -14,8 +15,11 @@ import org.json.JSONObject
 class MainActivity : Activity() {
     private val openRequest = 100
     private val saveRequest = 101
+    private val saveFolderRequest = 102
 
     private var selectedPath: String? = null
+    private val selectedPaths = linkedSetOf<String>()
+    private var selectionMode = false
 
     private lateinit var root: LinearLayout
     private lateinit var status: TextView
@@ -23,10 +27,15 @@ class MainActivity : Activity() {
     private lateinit var searchInput: EditText
     private lateinit var results: LinearLayout
     private lateinit var searchRow: LinearLayout
+    private lateinit var selectionBar: LinearLayout
+    private lateinit var selectionCount: TextView
+    private lateinit var selectAllButton: Button
+    private lateinit var clearSelectionButton: Button
     private lateinit var themeButton: ImageButton
 
     private var selectedResultView: LinearLayout? = null
     private val resultItems = mutableListOf<LinearLayout>()
+    private val resultPaths = mutableMapOf<LinearLayout, String>()
 
     private var darkMode = false
 
@@ -169,10 +178,18 @@ class MainActivity : Activity() {
 
         searchRow.addView(
             makeButton("Extract") {
-                if (selectedPath == null) {
-                    toast("Select a file first")
+                if (selectionMode) {
+                    if (selectedPaths.isEmpty()) {
+                        toast("Select at least one file")
+                    } else {
+                        chooseOutputFolder()
+                    }
                 } else {
-                    chooseOutput()
+                    if (selectedPath == null) {
+                        toast("Select a file first")
+                    } else {
+                        chooseOutput()
+                    }
                 }
             },
             LinearLayout.LayoutParams(0, dp(48), 1f).apply {
@@ -183,6 +200,61 @@ class MainActivity : Activity() {
         root.addView(
             searchRow,
             LinearLayout.LayoutParams(-1, -2)
+        )
+
+        // Multi-selection bar
+        selectionBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+        }
+
+        selectionCount = TextView(this).apply {
+            text = "0 selected"
+            textSize = 13f
+            setPadding(dp(4), dp(6), dp(8), dp(6))
+        }
+
+        selectionBar.addView(
+            selectionCount,
+            LinearLayout.LayoutParams(
+                0,
+                -2,
+                1f
+            )
+        )
+
+        selectAllButton = makeButton("Select all") {
+            selectAllResults()
+        }
+
+        selectionBar.addView(
+            selectAllButton,
+            LinearLayout.LayoutParams(
+                dp(110),
+                dp(42)
+            ).apply {
+                marginEnd = dp(6)
+            }
+        )
+
+        clearSelectionButton = makeButton("Cancel") {
+            exitSelectionMode()
+        }
+
+        selectionBar.addView(
+            clearSelectionButton,
+            LinearLayout.LayoutParams(
+                dp(90),
+                dp(42)
+            )
+        )
+
+        root.addView(
+            selectionBar,
+            LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(4)
+            }
         )
 
         // Results
@@ -278,16 +350,10 @@ class MainActivity : Activity() {
 
         updateButtons(root, accent, surface)
 
-        resultItems.forEach { item ->
-            val textBox = item.getChildAt(1) as LinearLayout
-            styleResultItem(
-                item,
-                textBox.getChildAt(0) as TextView,
-                textBox.getChildAt(1) as TextView,
-                item.getChildAt(0) as TextView,
-                selected = item === selectedResultView
-            )
-        }
+        selectionCount.setTextColor(secondaryText)
+
+        applyAllResultStyles()
+        updateSelectionUi()
     }
 
     private fun updateTextColors(
@@ -371,6 +437,19 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun chooseOutputFolder() {
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                )
+            },
+            saveFolderRequest
+        )
+    }
+
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -386,6 +465,18 @@ class MainActivity : Activity() {
             openUri(uri)
         } else if (requestCode == saveRequest) {
             extractToUri(uri)
+        } else if (requestCode == saveFolderRequest) {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Throwable) {
+                // Some providers do not support persistable permissions.
+            }
+
+            extractSelectedToFolder(uri)
         }
     }
 
@@ -448,8 +539,12 @@ class MainActivity : Activity() {
     private fun showFiles(array: JSONArray) {
         results.removeAllViews()
         resultItems.clear()
+        resultPaths.clear()
         selectedResultView = null
         selectedPath = null
+        selectedPaths.clear()
+        selectionMode = false
+        selectionBar.visibility = View.GONE
 
         val limit = minOf(array.length(), 5000)
 
@@ -552,6 +647,7 @@ class MainActivity : Activity() {
 
         results.addView(item, params)
         resultItems.add(item)
+        resultPaths[item] = path
 
         styleResultItem(
             item,
@@ -562,36 +658,138 @@ class MainActivity : Activity() {
         )
 
         item.setOnClickListener {
-            selectedResultView?.let { previous ->
-                styleResultItem(
-                    previous,
-                    previous.getChildAt(1)
-                        .let { box ->
-                            (box as LinearLayout)
-                                .getChildAt(0)
-                        } as TextView,
-                    previous.getChildAt(1)
-                        .let { box ->
-                            (box as LinearLayout)
-                                .getChildAt(1)
-                        } as TextView,
-                    previous.getChildAt(0) as TextView,
-                    selected = false
-                )
+            if (selectionMode) {
+                if (selectedPaths.contains(path)) {
+                    selectedPaths.remove(path)
+                } else {
+                    selectedPaths.add(path)
+                }
+
+                updateSelectionUi()
+                applyAllResultStyles()
+
+                status.text = "${selectedPaths.size} selected"
+                return@setOnClickListener
             }
 
+            selectedPaths.clear()
+            selectedPaths.add(path)
             selectedPath = path
             selectedResultView = item
+
+            applyAllResultStyles()
+
+            status.text = "Selected: $fileName"
+        }
+
+        item.setOnLongClickListener {
+            if (!selectionMode) {
+                selectionMode = true
+                selectedPaths.clear()
+            }
+
+            if (selectedPaths.contains(path)) {
+                selectedPaths.remove(path)
+            } else {
+                selectedPaths.add(path)
+            }
+
+            updateSelectionUi()
+            applyAllResultStyles()
+
+            status.text = "${selectedPaths.size} selected"
+
+            true
+        }
+    }
+
+    private fun updateSelectionUi() {
+        if (!selectionMode) {
+            selectionBar.visibility = View.GONE
+            return
+        }
+
+        selectionBar.visibility = View.VISIBLE
+
+        val count = selectedPaths.size
+        selectionCount.text = "$count selected"
+
+        val allSelected =
+            resultItems.isNotEmpty() &&
+            selectedPaths.size == resultItems.size
+
+        selectAllButton.text =
+            if (allSelected) "Deselect all" else "Select all"
+
+        val extractButton = searchRow.getChildAt(1) as Button
+        extractButton.text =
+            if (selectionMode) "Extract selected" else "Extract"
+    }
+
+    private fun selectAllResults() {
+        if (resultItems.isEmpty()) return
+
+        val allSelected =
+            selectedPaths.size == resultItems.size
+
+        if (allSelected) {
+            selectedPaths.clear()
+        } else {
+            selectedPaths.clear()
+
+            resultItems.forEach { item ->
+                resultPaths[item]?.let { path ->
+                    selectedPaths.add(path)
+                }
+            }
+        }
+
+        updateSelectionUi()
+        applyAllResultStyles()
+
+        status.text = "${selectedPaths.size} selected"
+    }
+
+    private fun exitSelectionMode() {
+        selectionMode = false
+        selectedPaths.clear()
+        selectedPath = null
+        selectedResultView = null
+
+        selectionBar.visibility = View.GONE
+
+        val extractButton = searchRow.getChildAt(1) as Button
+        extractButton.text = "Extract"
+
+        applyAllResultStyles()
+
+        status.text = "Selection cancelled"
+    }
+
+    private fun applyAllResultStyles() {
+        resultItems.forEach { item ->
+            val box = item.getChildAt(1) as LinearLayout
+
+            val nameView = box.getChildAt(0) as TextView
+            val pathView = box.getChildAt(1) as TextView
+            val icon = item.getChildAt(0) as TextView
+
+            val path = resultPaths[item]
+
+            val selected =
+                if (selectionMode) {
+                    path != null && selectedPaths.contains(path)
+                } else {
+                    item === selectedResultView
+                }
 
             styleResultItem(
                 item,
                 nameView,
                 pathView,
                 icon,
-                selected = true
+                selected
             )
-
-            status.text = "Selected: $fileName"
         }
     }
 
@@ -653,6 +851,244 @@ class MainActivity : Activity() {
                 }
             )
         }
+    }
+
+    private fun extractSelectedToFolder(treeUri: Uri) {
+        val paths = selectedPaths.toList()
+
+        if (paths.isEmpty()) {
+            toast("Select at least one file")
+            return
+        }
+
+        Thread {
+            var extracted = 0
+
+            try {
+                for ((index, path) in paths.withIndex()) {
+                    runOnUiThread {
+                        status.text =
+                            "Extracting ${index + 1}/${paths.size}..."
+                    }
+
+                    val fileUri = createFileForPakPath(
+                        treeUri,
+                        path
+                    )
+
+                    val pfd = contentResolver.openFileDescriptor(
+                        fileUri,
+                        "w"
+                    ) ?: error("Could not create output file")
+
+                    val fd = pfd.detachFd()
+
+                    val result = NativePak.extract(
+                        path,
+                        fd
+                    )
+
+                    if (!result.startsWith("Extracted:")) {
+                        error(result)
+                    }
+
+                    extracted++
+                }
+
+                runOnUiThread {
+                    status.text =
+                        "Extracted $extracted files successfully"
+
+                    selectionMode = false
+                    selectedPaths.clear()
+                    selectedPath = null
+                    selectedResultView = null
+                    selectionBar.visibility = View.GONE
+
+                    val extractButton =
+                        searchRow.getChildAt(1) as Button
+                    extractButton.text = "Extract"
+
+                    applyAllResultStyles()
+                }
+
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    status.text =
+                        "Extraction failed: ${t.message}"
+                }
+            }
+        }.start()
+    }
+
+    private fun createFileForPakPath(
+        treeUri: Uri,
+        pakPath: String
+    ): Uri {
+        val parts = pakPath
+            .split('/')
+            .filter {
+                it.isNotEmpty() &&
+                it != "." &&
+                it != ".."
+            }
+
+        require(parts.isNotEmpty()) {
+            "Invalid PAK path"
+        }
+
+        var currentUri = treeUri
+
+        for (i in 0 until parts.size - 1) {
+            currentUri = findOrCreateDirectory(
+                treeUri,
+                currentUri,
+                parts[i]
+            )
+        }
+
+        val fileName = parts.last()
+
+        return findOrCreateFile(
+            treeUri,
+            currentUri,
+            fileName
+        )
+    }
+
+    private fun findOrCreateDirectory(
+        treeUri: Uri,
+        parentUri: Uri,
+        name: String
+    ): Uri {
+        findChild(
+            treeUri,
+            parentUri,
+            name,
+            DocumentsContract.Document.MIME_TYPE_DIR
+        )?.let {
+            return it
+        }
+
+        val parentDocumentUri =
+            if (DocumentsContract.isTreeUri(parentUri)) {
+                DocumentsContract.buildDocumentUriUsingTree(
+                    treeUri,
+                    DocumentsContract.getTreeDocumentId(parentUri)
+                )
+            } else {
+                parentUri
+            }
+
+        return DocumentsContract.createDocument(
+            contentResolver,
+            parentDocumentUri,
+            DocumentsContract.Document.MIME_TYPE_DIR,
+            name
+        ) ?: error("Could not create directory: $name")
+    }
+
+    private fun findOrCreateFile(
+        treeUri: Uri,
+        parentUri: Uri,
+        name: String
+    ): Uri {
+        findChild(
+            treeUri,
+            parentUri,
+            name,
+            null
+        )?.let {
+            return it
+        }
+
+        val parentDocumentUri =
+            if (DocumentsContract.isTreeUri(parentUri)) {
+                DocumentsContract.buildDocumentUriUsingTree(
+                    treeUri,
+                    DocumentsContract.getTreeDocumentId(parentUri)
+                )
+            } else {
+                parentUri
+            }
+
+        return DocumentsContract.createDocument(
+            contentResolver,
+            parentDocumentUri,
+            "application/octet-stream",
+            name
+        ) ?: error("Could not create file: $name")
+    }
+
+    private fun findChild(
+        treeUri: Uri,
+        parentUri: Uri,
+        name: String,
+        requiredMimeType: String?
+    ): Uri? {
+        val parentId =
+            if (DocumentsContract.isTreeUri(parentUri)) {
+                DocumentsContract.getTreeDocumentId(parentUri)
+            } else {
+                DocumentsContract.getDocumentId(parentUri)
+            }
+
+        val childrenUri =
+            DocumentsContract.buildChildDocumentsUriUsingTree(
+                treeUri,
+                parentId
+            )
+
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+
+        contentResolver.query(
+            childrenUri,
+            projection,
+            null,
+            null,
+            null
+        )?.use { cursor ->
+
+            val idIndex = cursor.getColumnIndex(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID
+            )
+
+            val nameIndex = cursor.getColumnIndex(
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME
+            )
+
+            val mimeIndex = cursor.getColumnIndex(
+                DocumentsContract.Document.COLUMN_MIME_TYPE
+            )
+
+            while (cursor.moveToNext()) {
+                val childName = cursor.getString(nameIndex)
+
+                if (childName != name) continue
+
+                val mime =
+                    cursor.getString(mimeIndex)
+
+                if (
+                    requiredMimeType == null ||
+                    mime == requiredMimeType
+                ) {
+                    val id = cursor.getString(idIndex)
+
+                    return DocumentsContract
+                        .buildDocumentUriUsingTree(
+                            treeUri,
+                            id
+                        )
+                }
+            }
+        }
+
+        return null
     }
 
     private fun doSearch() {
