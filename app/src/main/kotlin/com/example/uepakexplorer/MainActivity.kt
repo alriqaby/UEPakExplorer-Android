@@ -303,9 +303,6 @@ class MainActivity : Activity() {
             minimumHeight = 0
             setPadding(dp(6), 0, dp(6), 0)
         }
-        }
-    }
-
     private fun applyTheme() {
         val bg = if (darkMode) bgDark else bgLight
         val surface = if (darkMode) surfaceDark else surfaceLight
