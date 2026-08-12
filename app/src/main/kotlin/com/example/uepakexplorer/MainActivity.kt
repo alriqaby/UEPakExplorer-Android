@@ -1,5 +1,6 @@
 package com.example.uepakexplorer
 import android.app.Activity
+import android.app.Dialog
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
@@ -32,6 +33,11 @@ class MainActivity : Activity() {
     private lateinit var selectAllButton: Button
     private lateinit var clearSelectionButton: Button
     private lateinit var themeButton: ImageButton
+
+    private var extractionDialog: Dialog? = null
+    private var extractionProgress: ProgressBar? = null
+    private var extractionTitle: TextView? = null
+    private var extractionDetails: TextView? = null
 
     private var selectedResultView: LinearLayout? = null
     private val resultItems = mutableListOf<LinearLayout>()
@@ -171,8 +177,8 @@ class MainActivity : Activity() {
             makeButton("Search") {
                 doSearch()
             },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginEnd = dp(6)
+            LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                marginEnd = dp(4)
             }
         )
 
@@ -192,14 +198,16 @@ class MainActivity : Activity() {
                     }
                 }
             },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginStart = dp(6)
+            LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                marginStart = dp(4)
             }
         )
 
         root.addView(
             searchRow,
-            LinearLayout.LayoutParams(-1, -2)
+            LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(4)
+            }
         )
 
         // Multi-selection bar
@@ -207,6 +215,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             visibility = View.GONE
+            setPadding(0, dp(4), 0, dp(4))
         }
 
         selectionCount = TextView(this).apply {
@@ -231,10 +240,11 @@ class MainActivity : Activity() {
         selectionBar.addView(
             selectAllButton,
             LinearLayout.LayoutParams(
-                dp(110),
-                dp(42)
+                dp(104),
+                dp(40)
             ).apply {
-                marginEnd = dp(6)
+                marginStart = dp(4)
+                marginEnd = dp(4)
             }
         )
 
@@ -245,9 +255,11 @@ class MainActivity : Activity() {
         selectionBar.addView(
             clearSelectionButton,
             LinearLayout.LayoutParams(
-                dp(90),
-                dp(42)
-            )
+                dp(82),
+                dp(40)
+            ).apply {
+                marginStart = dp(4)
+            }
         )
 
         root.addView(
@@ -284,12 +296,13 @@ class MainActivity : Activity() {
     ): Button {
         return Button(this).apply {
             text = label
-            textSize = 14f
+            textSize = 13f
             isAllCaps = false
             setOnClickListener { action() }
             minHeight = 0
             minimumHeight = 0
-            setPadding(dp(8), 0, dp(8), 0)
+            setPadding(dp(6), 0, dp(6), 0)
+        }
         }
     }
 
@@ -861,16 +874,15 @@ class MainActivity : Activity() {
             return
         }
 
+        showExtractionDialog(paths.size)
+
         Thread {
             var extracted = 0
+            var failed = 0
+            val failures = mutableListOf<String>()
 
-            try {
-                for ((index, path) in paths.withIndex()) {
-                    runOnUiThread {
-                        status.text =
-                            "Extracting ${index + 1}/${paths.size}..."
-                    }
-
+            for ((index, path) in paths.withIndex()) {
+                try {
                     val fileUri = createFileForPakPath(
                         treeUri,
                         path
@@ -883,21 +895,81 @@ class MainActivity : Activity() {
 
                     val fd = pfd.detachFd()
 
-                    val result = NativePak.extract(
-                        path,
-                        fd
-                    )
+                    try {
+                        val result = NativePak.extract(
+                            path,
+                            fd
+                        )
 
-                    if (!result.startsWith("Extracted:")) {
-                        error(result)
+                        if (!result.startsWith("Extracted:")) {
+                            error(result)
+                        }
+
+                        extracted++
+                    } finally {
+                        try {
+                            android.system.Os.close(fd)
+                        } catch (_: Throwable) {
+                        }
                     }
 
-                    extracted++
+                } catch (t: Throwable) {
+                    failed++
+                    failures.add(
+                        "${path.substringAfterLast('/')} : ${t.message ?: "Unknown error"}"
+                    )
                 }
 
+                val completed = index + 1
+
                 runOnUiThread {
-                    status.text =
+                    extractionProgress?.progress = completed
+
+                    extractionTitle?.text =
+                        "Extracting files..."
+
+                    extractionDetails?.text =
+                        "$completed / ${paths.size}\n" +
+                        "Success: $extracted    Failed: $failed"
+                }
+            }
+
+            runOnUiThread {
+                extractionProgress?.progress = paths.size
+
+                extractionTitle?.text =
+                    if (failed == 0) "Extraction complete"
+                    else "Extraction finished with errors"
+
+                val failureText =
+                    if (failed == 0) {
+                        "All $extracted files extracted successfully."
+                    } else {
+                        "$extracted succeeded, $failed failed."
+                    }
+
+                extractionDetails?.text = failureText
+
+                status.text =
+                    if (failed == 0) {
                         "Extracted $extracted files successfully"
+                    } else {
+                        "Extraction finished: $extracted succeeded, $failed failed"
+                    }
+
+                extractionDialog?.setOnDismissListener {
+                    extractionDialog = null
+                    extractionProgress = null
+                    extractionTitle = null
+                    extractionDetails = null
+                }
+
+                window.decorView.postDelayed({
+                    extractionDialog?.dismiss()
+                    extractionDialog = null
+                    extractionProgress = null
+                    extractionTitle = null
+                    extractionDetails = null
 
                     selectionMode = false
                     selectedPaths.clear()
@@ -910,15 +982,84 @@ class MainActivity : Activity() {
                     extractButton.text = "Extract"
 
                     applyAllResultStyles()
-                }
-
-            } catch (t: Throwable) {
-                runOnUiThread {
-                    status.text =
-                        "Extraction failed: ${t.message}"
-                }
+                }, 1400)
             }
         }.start()
+    }
+
+    private fun showExtractionDialog(total: Int) {
+        val dialog = Dialog(this)
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(20), dp(22), dp(20))
+        }
+
+        val title = TextView(this).apply {
+            text = "Extracting files..."
+            textSize = 18f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+        }
+
+        val details = TextView(this).apply {
+            text = "0 / $total\nSuccess: 0    Failed: 0"
+            textSize = 14f
+            setPadding(0, dp(8), 0, dp(12))
+        }
+
+        val progress = ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = total
+            progress = 0
+        }
+
+        container.addView(
+            title,
+            LinearLayout.LayoutParams(
+                -1,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        container.addView(
+            details,
+            LinearLayout.LayoutParams(
+                -1,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        container.addView(
+            progress,
+            LinearLayout.LayoutParams(
+                -1,
+                dp(8)
+            )
+        )
+
+        dialog.setContentView(container)
+        dialog.setCancelable(false)
+
+        dialog.window?.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(
+                if (darkMode) surfaceDark else Color.WHITE
+            )
+        )
+
+        extractionDialog = dialog
+        extractionProgress = progress
+        extractionTitle = title
+        extractionDetails = details
+
+        dialog.show()
+
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.86f).toInt(),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
     }
 
     private fun createFileForPakPath(
