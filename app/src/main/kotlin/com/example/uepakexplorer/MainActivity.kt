@@ -906,7 +906,7 @@ class MainActivity : Activity() {
                         extracted++
                     } finally {
                         try {
-                            android.system.Os.close(fd)
+                            android.os.ParcelFileDescriptor.adoptFd(fd).close()
                         } catch (_: Throwable) {
                         }
                     }
