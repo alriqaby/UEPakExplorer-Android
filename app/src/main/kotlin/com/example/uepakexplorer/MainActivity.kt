@@ -194,7 +194,7 @@ class MainActivity : Activity() {
                     if (selectedPath == null) {
                         toast("Select a file first")
                     } else {
-                        chooseOutput()
+                        chooseOutputFolder()
                     }
                 }
             },
@@ -893,23 +893,16 @@ class MainActivity : Activity() {
 
                     val fd = pfd.detachFd()
 
-                    try {
-                        val result = NativePak.extract(
-                            path,
-                            fd
-                        )
+                    val result = NativePak.extract(
+                        path,
+                        fd
+                    )
 
-                        if (!result.startsWith("Extracted:")) {
-                            error(result)
-                        }
-
-                        extracted++
-                    } finally {
-                        try {
-                            android.os.ParcelFileDescriptor.adoptFd(fd).close()
-                        } catch (_: Throwable) {
-                        }
+                    if (!result.startsWith("Extracted:")) {
+                        error(result)
                     }
+
+                    extracted++
 
                 } catch (t: Throwable) {
                     failed++
