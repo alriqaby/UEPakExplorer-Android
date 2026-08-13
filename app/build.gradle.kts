@@ -26,16 +26,22 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE")
-                ?: error("KEYSTORE_FILE is not set")
+            val keystoreFile = providers.environmentVariable("KEYSTORE_FILE").orNull
+                ?: error("KEYSTORE_FILE is not set. Official releases must provide the private keystore.")
 
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-                ?: error("KEYSTORE_PASSWORD is not set")
+            val keystorePassword = providers.environmentVariable("KEYSTORE_PASSWORD").orNull
+                ?: error("KEYSTORE_PASSWORD is not set. Official releases must provide the keystore password.")
 
-            val keyAlias = System.getenv("KEY_ALIAS")
-                ?: error("KEY_ALIAS is not set")
+            val keyAlias = providers.environmentVariable("KEY_ALIAS").orNull
+                ?: error("KEY_ALIAS is not set. Official releases must provide the key alias.")
 
-            storeFile = file(keystoreFile)
+            val releaseKeystore = file(keystoreFile)
+
+            if (!releaseKeystore.isFile) {
+                error("Release keystore does not exist: $keystoreFile")
+            }
+
+            storeFile = releaseKeystore
             storePassword = keystorePassword
             this.keyAlias = keyAlias
             keyPassword = keystorePassword
