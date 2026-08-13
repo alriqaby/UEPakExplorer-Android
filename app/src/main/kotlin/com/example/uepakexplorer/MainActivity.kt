@@ -47,17 +47,296 @@ class MainActivity : Activity() {
 
     private var darkMode = false
 
-    private val bgLight = Color.parseColor("#F6F7F9")
-    private val surfaceLight = Color.WHITE
-    private val textLight = Color.parseColor("#202124")
-    private val secondaryLight = Color.parseColor("#5F6368")
-    private val accentLight = Color.parseColor("#2563EB")
+    // =====================================================
+    // UEPak Explorer — Glass UI palette
+    // =====================================================
 
-    private val bgDark = Color.parseColor("#121212")
-    private val surfaceDark = Color.parseColor("#1E1E1E")
-    private val textDark = Color.parseColor("#F1F3F4")
-    private val secondaryDark = Color.parseColor("#B8BCC2")
-    private val accentDark = Color.parseColor("#8AB4F8")
+    // Light glass
+    private val bgLight = Color.parseColor("#EEF6FF")
+    private val surfaceLight = Color.parseColor("#F8FCFF")
+    private val glassLight = Color.parseColor("#CCFFFFFF")
+    private val glassLightStrong = Color.parseColor("#E6FFFFFF")
+    private val borderLight = Color.parseColor("#80FFFFFF")
+
+    private val textLight = Color.parseColor("#10233F")
+    private val secondaryLight = Color.parseColor("#58708F")
+    private val accentLight = Color.parseColor("#2477FF")
+    private val accentLightSoft = Color.parseColor("#DCEBFF")
+
+    // Dark glass
+    private val bgDark = Color.parseColor("#071321")
+    private val surfaceDark = Color.parseColor("#102033")
+    private val glassDark = Color.parseColor("#CC102A43")
+    private val glassDarkStrong = Color.parseColor("#E619304A")
+    private val borderDark = Color.parseColor("#4D9CCBFF")
+
+    private val textDark = Color.parseColor("#F3F8FF")
+    private val secondaryDark = Color.parseColor("#AFC3D9")
+    private val accentDark = Color.parseColor("#73B7FF")
+    private val accentDarkSoft = Color.parseColor("#193D64")
+
+    // Glass highlights / shadows
+    private val glassHighlightLight = Color.parseColor("#66FFFFFF")
+    private val glassHighlightDark = Color.parseColor("#338BD0FF")
+    private val glassShadowLight = Color.parseColor("#180B4EA2")
+    private val glassShadowDark = Color.parseColor("#66000000")
+
+    // =====================================================
+    // Glass UI helpers
+    // =====================================================
+
+    private fun glassBackground(
+        color: Int,
+        strokeColor: Int,
+        radiusDp: Float = 18f,
+        strokeDp: Int = 1
+    ): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radiusDp.toInt()).toFloat()
+            setStroke(dp(strokeDp), strokeColor)
+        }
+    }
+
+    private fun glassCardBackground(): GradientDrawable {
+        return if (darkMode) {
+            glassBackground(
+                glassDark,
+                borderDark,
+                20f,
+                1
+            )
+        } else {
+            glassBackground(
+                glassLight,
+                borderLight,
+                20f,
+                1
+            )
+        }
+    }
+
+    private fun glassButtonBackground(): GradientDrawable {
+        return if (darkMode) {
+            glassBackground(
+                accentDarkSoft,
+                borderDark,
+                16f,
+                1
+            )
+        } else {
+            glassBackground(
+                accentLightSoft,
+                borderLight,
+                16f,
+                1
+            )
+        }
+    }
+
+    private fun applyGlassStyle(view: View) {
+        view.background = glassCardBackground()
+        view.elevation = dp(3).toFloat()
+    }
+
+    private fun applyGlassButtonStyle(button: Button) {
+        button.background = glassButtonBackground()
+        button.elevation = dp(4).toFloat()
+        button.setPadding(
+            dp(18),
+            dp(10),
+            dp(18),
+            dp(10)
+        )
+    }
+
+    // =====================================================
+    // Glass UI — Stage 2
+    // Applies the visual layer without touching PAK logic.
+    // =====================================================
+
+    private fun applyGlassInterface() {
+
+        if (!::root.isInitialized) {
+            return
+        }
+
+        val glassCard = glassCardBackground()
+        val glassButton = glassButtonBackground()
+
+        // Root canvas
+        root.setBackgroundColor(
+            if (darkMode) bgDark else bgLight
+        )
+
+        // Direct children of the main layout.
+        // We intentionally avoid changing extraction/search logic.
+        for (i in 0 until root.childCount) {
+
+            val child = root.getChildAt(i)
+
+            when (child) {
+
+                is Button -> {
+                    child.background = glassButtonBackground()
+                    child.elevation = dp(4).toFloat()
+                    child.setTextColor(
+                        if (darkMode) textDark else textLight
+                    )
+                }
+
+                is EditText -> {
+                    child.background = glassCardBackground()
+                    child.elevation = dp(2).toFloat()
+                    child.setTextColor(
+                        if (darkMode) textDark else textLight
+                    )
+                    child.setHintTextColor(
+                        if (darkMode) secondaryDark else secondaryLight
+                    )
+                }
+
+                is LinearLayout -> {
+                    // Top bar / search row / selection bar
+                    child.background = glassCardBackground()
+                    child.elevation = dp(2).toFloat()
+                }
+
+                is TextView -> {
+                    child.setTextColor(
+                        if (darkMode) textDark else textLight
+                    )
+                }
+            }
+        }
+
+        // Main information text
+        if (::status.isInitialized) {
+            status.setTextColor(
+                if (darkMode) textDark else textLight
+            )
+        }
+
+        if (::info.isInitialized) {
+            info.setTextColor(
+                if (darkMode) secondaryDark else secondaryLight
+            )
+        }
+
+        // Search row
+        if (::searchRow.isInitialized) {
+            searchRow.background = glassCardBackground()
+            searchRow.elevation = dp(2).toFloat()
+
+            for (i in 0 until searchRow.childCount) {
+                val child = searchRow.getChildAt(i)
+
+                if (child is Button) {
+                    child.background = glassButtonBackground()
+                    child.setTextColor(
+                        if (darkMode) textDark else textLight
+                    )
+                    child.elevation = dp(3).toFloat()
+                }
+            }
+        }
+
+        // Selection bar
+        if (::selectionBar.isInitialized) {
+            selectionBar.background = glassCardBackground()
+            selectionBar.elevation = dp(3).toFloat()
+
+            if (::selectionCount.isInitialized) {
+                selectionCount.setTextColor(
+                    if (darkMode) textDark else textLight
+                )
+            }
+
+            if (::selectAllButton.isInitialized) {
+                applyGlassButtonStyle(selectAllButton)
+                selectAllButton.setTextColor(
+                    if (darkMode) textDark else textLight
+                )
+            }
+
+            if (::clearSelectionButton.isInitialized) {
+                applyGlassButtonStyle(clearSelectionButton)
+                clearSelectionButton.setTextColor(
+                    if (darkMode) textDark else textLight
+                )
+            }
+        }
+
+        // Result cards that already exist
+        for (item in resultItems) {
+            styleResultCard(item)
+        }
+
+        // Result cards created later
+        if (::results.isInitialized) {
+
+            results.setPadding(
+                dp(2),
+                dp(4),
+                dp(2),
+                dp(8)
+            )
+
+            results.setOnHierarchyChangeListener(
+                object : ViewGroup.OnHierarchyChangeListener {
+
+                    override fun onChildViewAdded(
+                        parent: View?,
+                        child: View?
+                    ) {
+                        if (child is LinearLayout) {
+                            styleResultCard(child)
+                        }
+                    }
+
+                    override fun onChildViewRemoved(
+                        parent: View?,
+                        child: View?
+                    ) {
+                    }
+                }
+            )
+        }
+    }
+
+    private fun styleResultCard(card: LinearLayout) {
+
+        card.background = glassCardBackground()
+        card.elevation = dp(3).toFloat()
+
+        card.setPadding(
+            dp(14),
+            dp(12),
+            dp(14),
+            dp(12)
+        )
+
+        for (i in 0 until card.childCount) {
+
+            val child = card.getChildAt(i)
+
+            when (child) {
+
+                is TextView -> {
+                    child.setTextColor(
+                        if (darkMode) textDark else textLight
+                    )
+                }
+
+                is Button -> {
+                    applyGlassButtonStyle(child)
+                    child.setTextColor(
+                        if (darkMode) textDark else textLight
+                    )
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +345,7 @@ class MainActivity : Activity() {
 
         buildInterface()
         applyTheme()
+        applyGlassInterface()
     }
 
     private fun isSystemDarkMode(): Boolean {
@@ -76,7 +356,8 @@ class MainActivity : Activity() {
     private fun buildInterface() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(16))
+            setPadding(dp(18), dp(16), dp(18), dp(18))
+            clipToPadding = false
         }
 
         // Top bar
@@ -92,13 +373,15 @@ class MainActivity : Activity() {
 
         titleBox.addView(TextView(this).apply {
             text = "UEPak Explorer"
-            textSize = 25f
+            textSize = 26f
             setTypeface(null, android.graphics.Typeface.BOLD)
+            letterSpacing = 0.01f
         })
 
         titleBox.addView(TextView(this).apply {
             text = "Unreal Engine PAK Explorer"
             textSize = 13f
+            letterSpacing = 0.02f
         })
 
         topBar.addView(
@@ -114,6 +397,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 darkMode = !darkMode
                 applyTheme()
+                applyGlassInterface()
             }
         }
 
