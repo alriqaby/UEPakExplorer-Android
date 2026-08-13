@@ -9,7 +9,6 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
 import android.widget.*
 import java.io.File
 import java.io.FileInputStream
@@ -28,6 +27,7 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var status: TextView
     private lateinit var info: TextView
+    private lateinit var infoCard: LinearLayout
     private lateinit var searchInput: EditText
     private lateinit var results: LinearLayout
     private lateinit var searchRow: LinearLayout
@@ -157,152 +157,52 @@ class MainActivity : Activity() {
     // =====================================================
 
     private fun applyGlassInterface() {
+        if (!::root.isInitialized) return
 
-        if (!::root.isInitialized) {
-            return
+        root.setBackgroundColor(if (darkMode) bgDark else bgLight)
+
+        if (::infoCard.isInitialized) {
+            infoCard.background = glassCardBackground()
+            infoCard.elevation = dp(2).toFloat()
+        }
+        if (::status.isInitialized) status.setTextColor(if (darkMode) textDark else textLight)
+        if (::info.isInitialized) info.setTextColor(if (darkMode) secondaryDark else secondaryLight)
+
+        if (::searchInput.isInitialized) {
+            searchInput.background = glassCardBackground()
+            searchInput.elevation = dp(2).toFloat()
+            searchInput.setTextColor(if (darkMode) textDark else textLight)
+            searchInput.setHintTextColor(if (darkMode) secondaryDark else secondaryLight)
         }
 
-        val glassCard = glassCardBackground()
-        val glassButton = glassButtonBackground()
-
-        // Root canvas
-        root.setBackgroundColor(
-            if (darkMode) bgDark else bgLight
-        )
-
-        // Direct children of the main layout.
-        // We intentionally avoid changing extraction/search logic.
-        for (i in 0 until root.childCount) {
-
-            val child = root.getChildAt(i)
-
-            when (child) {
-
-                is Button -> {
-                    child.background = glassButtonBackground()
-                    child.elevation = dp(4).toFloat()
-                    child.setTextColor(
-                        if (darkMode) textDark else textLight
-                    )
-                }
-
-                is EditText -> {
-                    child.background = glassCardBackground()
-                    child.elevation = dp(2).toFloat()
-                    child.setTextColor(
-                        if (darkMode) textDark else textLight
-                    )
-                    child.setHintTextColor(
-                        if (darkMode) secondaryDark else secondaryLight
-                    )
-                }
-
-                is LinearLayout -> {
-                    // Top bar / search row / selection bar
-                    child.background = glassCardBackground()
-                    child.elevation = dp(2).toFloat()
-                }
-
-                is TextView -> {
-                    child.setTextColor(
-                        if (darkMode) textDark else textLight
-                    )
-                }
-            }
-        }
-
-        // Main information text
-        if (::status.isInitialized) {
-            status.setTextColor(
-                if (darkMode) textDark else textLight
-            )
-        }
-
-        if (::info.isInitialized) {
-            info.setTextColor(
-                if (darkMode) secondaryDark else secondaryLight
-            )
-        }
-
-        // Search row
         if (::searchRow.isInitialized) {
             searchRow.background = glassCardBackground()
             searchRow.elevation = dp(2).toFloat()
-
             for (i in 0 until searchRow.childCount) {
                 val child = searchRow.getChildAt(i)
-
                 if (child is Button) {
-                    child.background = glassButtonBackground()
-                    child.setTextColor(
-                        if (darkMode) textDark else textLight
-                    )
-                    child.elevation = dp(3).toFloat()
+                    applyGlassButtonStyle(child)
+                    child.setTextColor(if (darkMode) textDark else textLight)
                 }
             }
         }
 
-        // Selection bar
         if (::selectionBar.isInitialized) {
             selectionBar.background = glassCardBackground()
-            selectionBar.elevation = dp(3).toFloat()
-
-            if (::selectionCount.isInitialized) {
-                selectionCount.setTextColor(
-                    if (darkMode) textDark else textLight
-                )
-            }
-
+            selectionBar.elevation = dp(2).toFloat()
+            if (::selectionCount.isInitialized) selectionCount.setTextColor(if (darkMode) textDark else textLight)
             if (::selectAllButton.isInitialized) {
                 applyGlassButtonStyle(selectAllButton)
-                selectAllButton.setTextColor(
-                    if (darkMode) textDark else textLight
-                )
+                selectAllButton.setTextColor(if (darkMode) textDark else textLight)
             }
-
             if (::clearSelectionButton.isInitialized) {
                 applyGlassButtonStyle(clearSelectionButton)
-                clearSelectionButton.setTextColor(
-                    if (darkMode) textDark else textLight
-                )
+                clearSelectionButton.setTextColor(if (darkMode) textDark else textLight)
             }
         }
 
-        // Result cards that already exist
-        for (item in resultItems) {
-            styleResultCard(item)
-        }
-
-        // Result cards created later
-        if (::results.isInitialized) {
-
-            results.setPadding(
-                dp(2),
-                dp(4),
-                dp(2),
-                dp(8)
-            )
-
-            results.setOnHierarchyChangeListener(
-                object : ViewGroup.OnHierarchyChangeListener {
-
-                    override fun onChildViewAdded(
-                        parent: View?,
-                        child: View?
-                    ) {
-                        if (child is LinearLayout) {
-                            styleResultCard(child)
-                        }
-                    }
-
-                    override fun onChildViewRemoved(
-                        parent: View?,
-                        child: View?
-                    ) {
-                    }
-                }
-            )
-        }
+        for (item in resultItems) item.elevation = dp(3).toFloat()
+        applyAllResultStyles()
     }
 
     private fun styleResultCard(card: LinearLayout) {
@@ -357,15 +257,16 @@ class MainActivity : Activity() {
     private fun buildInterface() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(18))
+            setPadding(dp(18), dp(12), dp(18), dp(18))
             clipToPadding = false
         }
 
-        // Top bar
+        // Compact top header: title and theme button stay visually separated.
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             layoutDirection = View.LAYOUT_DIRECTION_LTR
+            setPadding(0, dp(2), 0, dp(2))
         }
 
         val titleBox = LinearLayout(this).apply {
@@ -374,27 +275,25 @@ class MainActivity : Activity() {
 
         titleBox.addView(TextView(this).apply {
             text = "UEPak Explorer"
-            textSize = 26f
+            textSize = 24f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            letterSpacing = 0.01f
+            letterSpacing = 0.005f
+            maxLines = 1
         })
 
         titleBox.addView(TextView(this).apply {
             text = "Unreal Engine PAK Explorer"
-            textSize = 13f
-            letterSpacing = 0.02f
+            textSize = 12.5f
+            letterSpacing = 0.015f
+            maxLines = 1
         })
 
-        topBar.addView(
-            titleBox,
-            LinearLayout.LayoutParams(0, -2, 1f)
-        )
+        topBar.addView(titleBox, LinearLayout.LayoutParams(0, dp(58), 1f))
 
         themeButton = ImageButton(this).apply {
             scaleType = ImageView.ScaleType.CENTER
             setPadding(dp(9), dp(9), dp(9), dp(9))
             contentDescription = "Toggle light and dark mode"
-
             setOnClickListener {
                 darkMode = !darkMode
                 applyTheme()
@@ -402,177 +301,108 @@ class MainActivity : Activity() {
             }
         }
 
-        topBar.addView(
-            themeButton,
-            LinearLayout.LayoutParams(dp(44), dp(44)).apply {
-                marginStart = dp(8)
-            }
-        )
+        topBar.addView(themeButton, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+            marginStart = dp(10)
+        })
 
-        root.addView(
-            topBar,
-            LinearLayout.LayoutParams(-1, -2)
-        )
+        root.addView(topBar, LinearLayout.LayoutParams(-1, dp(62)))
 
-        // Open PAK
-        val openButton = makeButton("Open PAK") {
-            choosePak()
+        val openButton = makeButton("Open PAK") { choosePak() }
+        root.addView(openButton, LinearLayout.LayoutParams(-1, dp(52)).apply {
+            topMargin = dp(12)
+            bottomMargin = dp(10)
+        })
+
+        // Dedicated PAK information glass card instead of the old plain/gray block.
+        infoCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(12), dp(16), dp(12))
         }
-
-        val openParams = LinearLayout.LayoutParams(
-            -1,
-            dp(52)
-        )
-        openParams.topMargin = dp(18)
-        root.addView(openButton, openParams)
 
         status = TextView(this).apply {
             text = "No PAK opened"
-            textSize = 14f
-            setPadding(dp(4), dp(14), dp(4), dp(8))
+            textSize = 15f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, dp(5))
         }
-        root.addView(status)
 
         info = TextView(this).apply {
-            textSize = 13f
-            setPadding(dp(4), 0, dp(4), dp(10))
+            textSize = 13.5f
+            setLineSpacing(0f, 1.12f)
         }
-        root.addView(info)
 
-        // Search input
+        infoCard.addView(status, LinearLayout.LayoutParams(-1, -2))
+        infoCard.addView(info, LinearLayout.LayoutParams(-1, -2))
+        root.addView(infoCard, LinearLayout.LayoutParams(-1, -2).apply {
+            bottomMargin = dp(10)
+        })
+
         searchInput = EditText(this).apply {
             hint = "Search files, Localization, Fonts..."
             setSingleLine(true)
             visibility = View.GONE
-            setPadding(dp(14), 0, dp(14), 0)
+            textSize = 14f
+            setPadding(dp(16), 0, dp(16), 0)
         }
+        root.addView(searchInput, LinearLayout.LayoutParams(-1, dp(50)).apply {
+            bottomMargin = dp(8)
+        })
 
-        val searchParams = LinearLayout.LayoutParams(
-            -1,
-            dp(52)
-        )
-        searchParams.bottomMargin = dp(10)
-        root.addView(searchInput, searchParams)
-
-        // Search buttons
         searchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             visibility = View.GONE
         }
 
-        searchRow.addView(
-            makeButton("Search") {
-                doSearch()
-            },
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply {
-                marginEnd = dp(4)
-            }
-        )
+        searchRow.addView(makeButton("Search") { doSearch() },
+            LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(4) })
 
-        searchRow.addView(
-            makeButton("Extract") {
-                if (selectionMode) {
-                    if (selectedPaths.isEmpty()) {
-                        toast("Select at least one file")
-                    } else {
-                        chooseOutputFolder()
-                    }
-                } else {
-                    if (selectedPath == null) {
-                        toast("Select a file first")
-                    } else {
-                        chooseOutputFolder()
-                    }
-                }
-            },
-            LinearLayout.LayoutParams(0, dp(44), 1f).apply {
-                marginStart = dp(4)
+        searchRow.addView(makeButton("Extract") {
+            if (selectionMode) {
+                if (selectedPaths.isEmpty()) toast("Select at least one file") else chooseOutputFolder()
+            } else {
+                if (selectedPath == null) toast("Select a file first") else chooseOutputFolder()
             }
-        )
+        }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(4) })
 
-        root.addView(
-            searchRow,
-            LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = dp(4)
-            }
-        )
+        root.addView(searchRow, LinearLayout.LayoutParams(-1, dp(50)).apply {
+            bottomMargin = dp(4)
+        })
 
-        // Multi-selection bar
         selectionBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             visibility = View.GONE
-            setPadding(0, dp(4), 0, dp(4))
+            setPadding(dp(4), dp(4), dp(4), dp(4))
         }
 
         selectionCount = TextView(this).apply {
             text = "0 selected"
             textSize = 13f
-            setPadding(dp(4), dp(6), dp(8), dp(6))
+            setPadding(dp(6), dp(6), dp(8), dp(6))
         }
+        selectionBar.addView(selectionCount, LinearLayout.LayoutParams(0, -2, 1f))
 
-        selectionBar.addView(
-            selectionCount,
-            LinearLayout.LayoutParams(
-                0,
-                -2,
-                1f
-            )
-        )
+        selectAllButton = makeButton("Select all") { selectAllResults() }
+        selectionBar.addView(selectAllButton, LinearLayout.LayoutParams(dp(106), dp(40)).apply {
+            marginStart = dp(4); marginEnd = dp(4)
+        })
 
-        selectAllButton = makeButton("Select all") {
-            selectAllResults()
-        }
+        clearSelectionButton = makeButton("Cancel") { exitSelectionMode() }
+        selectionBar.addView(clearSelectionButton, LinearLayout.LayoutParams(dp(84), dp(40)))
 
-        selectionBar.addView(
-            selectAllButton,
-            LinearLayout.LayoutParams(
-                dp(104),
-                dp(40)
-            ).apply {
-                marginStart = dp(4)
-                marginEnd = dp(4)
-            }
-        )
+        root.addView(selectionBar, LinearLayout.LayoutParams(-1, dp(48)).apply {
+            bottomMargin = dp(4)
+        })
 
-        clearSelectionButton = makeButton("Cancel") {
-            exitSelectionMode()
-        }
-
-        selectionBar.addView(
-            clearSelectionButton,
-            LinearLayout.LayoutParams(
-                dp(82),
-                dp(40)
-            ).apply {
-                marginStart = dp(4)
-            }
-        )
-
-        root.addView(
-            selectionBar,
-            LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = dp(4)
-            }
-        )
-
-        // Results
         results = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(2), dp(2), dp(8))
         }
 
-        val scroll = ScrollView(this).apply {
-            addView(results)
-        }
-
-        val scrollParams = LinearLayout.LayoutParams(
-            -1,
-            0,
-            1f
-        )
-        scrollParams.topMargin = dp(14)
-
-        root.addView(scroll, scrollParams)
+        val scroll = ScrollView(this).apply { addView(results) }
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply {
+            topMargin = dp(10)
+        })
 
         setContentView(root)
     }
@@ -1099,30 +929,14 @@ class MainActivity : Activity() {
         selected: Boolean
     ) {
         val cardColor = when {
-            selected && darkMode ->
-                Color.parseColor("#263B5C")
-
-            selected ->
-                Color.parseColor("#E8F0FE")
-
-            darkMode ->
-                Color.parseColor("#1E1E1E")
-
-            else ->
-                Color.WHITE
+            selected && darkMode -> Color.parseColor("#193D64")
+            selected -> Color.parseColor("#DCEBFF")
+            darkMode -> Color.parseColor("#CC102A43")
+            else -> Color.parseColor("#CCFFFFFF")
         }
 
-        val primary = if (darkMode) {
-            Color.WHITE
-        } else {
-            textLight
-        }
-
-        val secondary = if (darkMode) {
-            Color.parseColor("#B8BCC2")
-        } else {
-            secondaryLight
-        }
+        val primary = if (darkMode) textDark else textLight
+        val secondary = if (darkMode) secondaryDark else secondaryLight
 
         nameView.setTextColor(primary)
         pathView.setTextColor(secondary)
@@ -1130,25 +944,15 @@ class MainActivity : Activity() {
 
         item.background = GradientDrawable().apply {
             setColor(cardColor)
-            cornerRadius = dp(12).toFloat()
-
-            setStroke(
-                dp(1),
-                when {
-                    selected && darkMode ->
-                        Color.parseColor("#4D78B8")
-
-                    selected ->
-                        Color.parseColor("#9AB8E8")
-
-                    darkMode ->
-                        Color.parseColor("#303030")
-
-                    else ->
-                        Color.parseColor("#E2E5E9")
-                }
-            )
+            cornerRadius = dp(18).toFloat()
+            setStroke(dp(1), when {
+                selected && darkMode -> Color.parseColor("#4D9CCBFF")
+                selected -> Color.parseColor("#9FC5FF")
+                darkMode -> Color.parseColor("#33506C")
+                else -> Color.parseColor("#80FFFFFF")
+            })
         }
+        item.elevation = dp(3).toFloat()
     }
 
     private fun extractSelectedToFolder(treeUri: Uri) {
