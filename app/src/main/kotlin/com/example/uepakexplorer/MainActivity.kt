@@ -10,6 +10,8 @@ import android.provider.DocumentsContract
 import android.os.Bundle
 import android.view.View
 import android.widget.*
+import java.io.File
+import java.io.FileInputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -872,87 +874,83 @@ class MainActivity : Activity() {
             return
         }
 
+        val tempRoot = File(
+            externalCacheDir ?: cacheDir,
+            "uepak-extract-${System.currentTimeMillis()}"
+        )
+
+        if (!tempRoot.mkdirs() && !tempRoot.isDirectory) {
+            toast("Could not create temporary extraction folder")
+            return
+        }
+
         showExtractionDialog(paths.size)
 
         Thread {
-            var extracted = 0
-            var failed = 0
-            val failures = mutableListOf<String>()
+            try {
+                val pathsJson = JSONArray().apply {
+                    paths.forEach { put(it) }
+                }.toString()
 
-            for ((index, path) in paths.withIndex()) {
-                try {
-                    val fileUri = createFileForPakPath(
-                        treeUri,
-                        path
+                val nativeJson = JSONObject(
+                    NativePak.extractBatch(
+                        pathsJson,
+                        tempRoot.absolutePath
                     )
+                )
 
-                    val pfd = contentResolver.openFileDescriptor(
-                        fileUri,
-                        "w"
-                    ) ?: error("Could not create output file")
-
-                    val fd = pfd.detachFd()
-
-                    val result = NativePak.extract(
-                        path,
-                        fd
-                    )
-
-                    if (!result.startsWith("Extracted:")) {
-                        error(result)
-                    }
-
-                    extracted++
-
-                } catch (t: Throwable) {
-                    failed++
-                    failures.add(
-                        "${path.substringAfterLast('/')} : ${t.message ?: "Unknown error"}"
+                if (!nativeJson.optBoolean("ok")) {
+                    throw IllegalStateException(
+                        nativeJson.optString(
+                            "error",
+                            "Native extraction failed"
+                        )
                     )
                 }
 
-                val completed = index + 1
+                val nativeSuccess =
+                    nativeJson.optInt("success", 0)
+
+                val nativeFailed =
+                    nativeJson.optInt("failed", 0)
+
+                val copyResult =
+                    copyExtractedTreeToSaf(
+                        tempRoot,
+                        treeUri,
+                        nativeSuccess
+                    )
+
+                val totalFailed =
+                    nativeFailed + copyResult.failed
 
                 runOnUiThread {
-                    extractionProgress?.progress = completed
+                    extractionProgress?.max = paths.size
+                    extractionProgress?.progress =
+                        minOf(
+                            copyResult.success + totalFailed,
+                            paths.size
+                        )
 
                     extractionTitle?.text =
-                        "Extracting files..."
+                        if (totalFailed == 0) {
+                            "Extraction complete"
+                        } else {
+                            "Extraction finished with errors"
+                        }
 
                     extractionDetails?.text =
-                        "$completed / ${paths.size}\n" +
-                        "Success: $extracted    Failed: $failed"
-                }
-            }
+                        "${copyResult.success} copied, " +
+                        "$totalFailed failed"
 
-            runOnUiThread {
-                extractionProgress?.progress = paths.size
-
-                extractionTitle?.text =
-                    if (failed == 0) "Extraction complete"
-                    else "Extraction finished with errors"
-
-                val failureText =
-                    if (failed == 0) {
-                        "All $extracted files extracted successfully."
-                    } else {
-                        "$extracted succeeded, $failed failed."
-                    }
-
-                extractionDetails?.text = failureText
-
-                status.text =
-                    if (failed == 0) {
-                        "Extracted $extracted files successfully"
-                    } else {
-                        "Extraction finished: $extracted succeeded, $failed failed"
-                    }
-
-                extractionDialog?.setOnDismissListener {
-                    extractionDialog = null
-                    extractionProgress = null
-                    extractionTitle = null
-                    extractionDetails = null
+                    status.text =
+                        if (totalFailed == 0) {
+                            "Extracted ${copyResult.success} files successfully"
+                        } else {
+                            "Extraction finished: " +
+                            "${copyResult.success} succeeded, " +
+                            "$totalFailed failed"
+                        }
                 }
 
                 window.decorView.postDelayed({
@@ -973,10 +971,111 @@ class MainActivity : Activity() {
                     extractButton.text = "Extract"
 
                     applyAllResultStyles()
-                }, 1400)
+                }, 1200)
+
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    extractionTitle?.text = "Extraction failed"
+                    extractionDetails?.text =
+                        t.message ?: "Unknown extraction error"
+                    status.text =
+                        "Extraction failed: " +
+                        (t.message ?: "Unknown error")
+                }
+            } finally {
+                tempRoot.deleteRecursively()
             }
         }.start()
     }
+
+    private data class CopyResult(
+        val success: Int,
+        val failed: Int
+    )
+
+    private fun copyExtractedTreeToSaf(
+        tempRoot: File,
+        treeUri: Uri,
+        total: Int
+    ): CopyResult {
+        var success = 0
+        var failed = 0
+
+        val files = tempRoot
+            .walkTopDown()
+            .filter { it.isFile }
+            .toList()
+
+        for (file in files) {
+            try {
+                val relative = tempRoot
+                    .toPath()
+                    .relativize(file.toPath())
+                    .toString()
+                    .replace(File.separatorChar, '/')
+
+                val parts = relative
+                    .split('/')
+                    .filter { it.isNotEmpty() }
+
+                require(parts.isNotEmpty()) {
+                    "Invalid extracted path"
+                }
+
+                var parentUri = treeUri
+
+                for (part in parts.dropLast(1)) {
+                    parentUri = findOrCreateDirectory(
+                        treeUri,
+                        parentUri,
+                        part
+                    )
+                }
+
+                val fileName = parts.last()
+
+                val fileUri = findOrCreateFile(
+                    treeUri,
+                    parentUri,
+                    fileName
+                )
+
+                contentResolver
+                    .openOutputStream(fileUri, "wt")
+                    ?.use { output ->
+                        file.inputStream().use { input ->
+                            input.copyTo(
+                                output,
+                                64 * 1024
+                            )
+                        }
+                    }
+                    ?: error(
+                        "Could not open SAF output stream"
+                    )
+
+                success++
+
+            } catch (_: Throwable) {
+                failed++
+            }
+
+            val completed = success + failed
+
+            runOnUiThread {
+                extractionProgress?.max = total
+                extractionProgress?.progress =
+                    minOf(completed, total)
+
+                extractionDetails?.text =
+                    "$completed / $total\n" +
+                    "Success: $success    Failed: $failed"
+            }
+        }
+
+        return CopyResult(success, failed)
+    }
+
 
     private fun showExtractionDialog(total: Int) {
         val dialog = Dialog(this)
@@ -1261,24 +1360,55 @@ class MainActivity : Activity() {
         val path = selectedPath ?: return
 
         Thread {
+            var tempFile: File? = null
+
             try {
-                val pfd =
-                    contentResolver.openFileDescriptor(uri, "w")
-                        ?: error("Could not create output")
+                tempFile = File.createTempFile(
+                    "uepak_extract_",
+                    ".tmp",
+                    cacheDir
+                )
 
-                val fd = pfd.detachFd()
+                val result = NativePak.extractToPath(
+                    path,
+                    tempFile.absolutePath
+                )
 
-                val result =
-                    NativePak.extract(path, fd)
+                if (!result.startsWith("Extracted:")) {
+                    error(result)
+                }
+
+                contentResolver
+                    .openOutputStream(uri, "wt")
+                    ?.use { output ->
+                        FileInputStream(tempFile).use { input ->
+                            input.copyTo(
+                                output,
+                                64 * 1024
+                            )
+                        }
+
+                        output.flush()
+                    }
+                    ?: error(
+                        "Could not open output document"
+                    )
 
                 runOnUiThread {
-                    status.text = result
+                    status.text =
+                        "Extracted: $path"
                 }
 
             } catch (t: Throwable) {
                 runOnUiThread {
                     status.text =
-                        "Extract failed: ${t.message}"
+                        "Extract failed: " +
+                        (t.message ?: "Unknown error")
+                }
+            } finally {
+                try {
+                    tempFile?.delete()
+                } catch (_: Throwable) {
                 }
             }
         }.start()

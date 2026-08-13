@@ -5,6 +5,7 @@ use repak::PakBuilder;
 use serde_json::json;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 use std::os::fd::{FromRawFd, RawFd};
 use std::sync::Mutex;
 
@@ -84,15 +85,214 @@ pub extern "system" fn Java_com_example_uepakexplorer_NativePak_search(
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_uepakexplorer_NativePak_extract(
-    mut env: JNIEnv, _class: JClass, path: JString, output_fd: jint
+    mut env: JNIEnv,
+    _class: JClass,
+    path: JString,
+    output_fd: jint
 ) -> jstring {
-    let path: String = match env.get_string(&path) { Ok(s) => s.into(), Err(e) => return js(&mut env, e.to_string()) };
+    let path: String = match env.get_string(&path) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(e) => return js(&mut env, e.to_string()),
+    };
+
     let mut output = take_fd(output_fd);
     let mut guard = SESSION.lock().unwrap();
-    let Some(s) = guard.as_mut() else { return js(&mut env, "No PAK opened".into()); };
+
+    let Some(s) = guard.as_mut() else {
+        return js(&mut env, "No PAK opened".into());
+    };
+
     let _ = output.seek(SeekFrom::Start(0));
+
     match s.pak.read_file(&path, &mut s.file, &mut output) {
-        Ok(()) => { let _ = output.flush(); js(&mut env, format!("Extracted: {path}")) }
-        Err(e) => js(&mut env, format!("Extraction failed: {e}"))
+        Ok(()) => {
+            let _ = output.flush();
+            js(&mut env, format!("Extracted: {path}"))
+        }
+
+        Err(e) => {
+            js(&mut env, format!("Extraction failed: {e}"))
+        }
     }
+}
+
+
+fn safe_relative_path(path: &str) -> Result<PathBuf, String> {
+    let normalized = path.replace('\\', "/");
+
+    let p = Path::new(&normalized);
+
+    if p.is_absolute() {
+        return Err(format!("Unsafe absolute PAK path: {path}"));
+    }
+
+    let mut result = PathBuf::new();
+
+    for component in p.components() {
+        match component {
+            std::path::Component::Normal(value) => {
+                result.push(value);
+            }
+
+            std::path::Component::CurDir => {}
+
+            std::path::Component::ParentDir => {
+                return Err(format!("Unsafe parent path: {path}"));
+            }
+
+            _ => {
+                return Err(format!("Unsafe PAK path: {path}"));
+            }
+        }
+    }
+
+    if result.as_os_str().is_empty() {
+        return Err(format!("Empty PAK path: {path}"));
+    }
+
+    Ok(result)
+}
+
+
+fn extract_one_to_path(
+    path: &str,
+    output_path: &Path
+) -> Result<(), String> {
+    let mut guard = SESSION.lock().unwrap();
+
+    let Some(s) = guard.as_mut() else {
+        return Err("No PAK opened".into());
+    };
+
+    if let Some(parent) = output_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Could not create output directory: {e}"))?;
+    }
+
+    let mut output = File::create(output_path)
+        .map_err(|e| format!("Could not create output file: {e}"))?;
+
+    s.pak
+        .read_file(path, &mut s.file, &mut output)
+        .map_err(|e| format!("Extraction failed: {e}"))?;
+
+    output
+        .flush()
+        .map_err(|e| format!("Could not flush output: {e}"))?;
+
+    output
+        .sync_all()
+        .map_err(|e| format!("Could not sync output: {e}"))?;
+
+    Ok(())
+}
+
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_uepakexplorer_NativePak_extractToPath(
+    mut env: JNIEnv,
+    _class: JClass,
+    path: JString,
+    output_path: JString
+) -> jstring {
+    let path: String = match env.get_string(&path) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(e) => return js(&mut env, e.to_string()),
+    };
+
+    let output_path: String = match env.get_string(&output_path) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(e) => return js(&mut env, e.to_string()),
+    };
+
+    match extract_one_to_path(&path, Path::new(&output_path)) {
+        Ok(()) => js(&mut env, format!("Extracted: {path}")),
+        Err(e) => js(&mut env, e),
+    }
+}
+
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_uepakexplorer_NativePak_extractBatch(
+    mut env: JNIEnv,
+    _class: JClass,
+    paths_json: JString,
+    output_root: JString
+) -> jstring {
+    let paths_text: String = match env.get_string(&paths_json) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(e) => return js(&mut env, e.to_string()),
+    };
+
+    let output_root: String = match env.get_string(&output_root) {
+        Ok(s) => s.to_string_lossy().into_owned(),
+        Err(e) => return js(&mut env, e.to_string()),
+    };
+
+    let paths: Vec<String> = match serde_json::from_str(&paths_text) {
+        Ok(v) => v,
+        Err(e) => {
+            return js(
+                &mut env,
+                json!({
+                    "ok": false,
+                    "error": format!("Invalid paths JSON: {e}")
+                }).to_string()
+            );
+        }
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&output_root) {
+        return js(
+            &mut env,
+            json!({
+                "ok": false,
+                "error": format!("Could not create output root: {e}")
+            }).to_string()
+        );
+    }
+
+    let mut success = 0usize;
+    let mut failed = 0usize;
+    let mut failures = Vec::new();
+
+    for path in paths.iter() {
+        let relative = match safe_relative_path(path) {
+            Ok(v) => v,
+            Err(e) => {
+                failed += 1;
+                failures.push(json!({
+                    "path": path,
+                    "error": e
+                }));
+                continue;
+            }
+        };
+
+        let output_path = Path::new(&output_root).join(relative);
+
+        match extract_one_to_path(path, &output_path) {
+            Ok(()) => {
+                success += 1;
+            }
+
+            Err(e) => {
+                failed += 1;
+                failures.push(json!({
+                    "path": path,
+                    "error": e
+                }));
+            }
+        }
+    }
+
+    js(
+        &mut env,
+        json!({
+            "ok": true,
+            "success": success,
+            "failed": failed,
+            "failures": failures
+        }).to_string()
+    )
 }
