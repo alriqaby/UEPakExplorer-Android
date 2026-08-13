@@ -1007,7 +1007,7 @@ class MainActivity : Activity() {
                     copyExtractedTreeToSaf(
                         tempRoot,
                         treeUri,
-                        nativeSuccess
+                        paths.size
                     )
 
                 val totalFailed =
@@ -1166,23 +1166,38 @@ class MainActivity : Activity() {
     }
 
 
+
     private fun showExtractionDialog(total: Int) {
+        val safeTotal = maxOf(total, 1)
         val dialog = Dialog(this)
+
+        val titleColor = if (darkMode) textDark else textLight
+        val detailsColor = if (darkMode) secondaryDark else secondaryLight
+        val accentColor = if (darkMode) accentDark else accentLight
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(20), dp(22), dp(20))
+            background = glassBackground(
+                if (darkMode) glassDarkStrong else glassLightStrong,
+                if (darkMode) borderDark else borderLight,
+                20f,
+                1
+            )
+            elevation = dp(8).toFloat()
         }
 
         val title = TextView(this).apply {
             text = "Extracting files..."
             textSize = 18f
             setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(titleColor)
         }
 
         val details = TextView(this).apply {
-            text = "0 / $total\nSuccess: 0    Failed: 0"
+            text = "0 / $safeTotal\nSuccess: 0    Failed: 0"
             textSize = 14f
+            setTextColor(detailsColor)
             setPadding(0, dp(8), 0, dp(12))
         }
 
@@ -1191,8 +1206,10 @@ class MainActivity : Activity() {
             null,
             android.R.attr.progressBarStyleHorizontal
         ).apply {
-            max = total
+            max = safeTotal
             progress = 0
+            progressTintList =
+                android.content.res.ColorStateList.valueOf(accentColor)
         }
 
         container.addView(
@@ -1222,18 +1239,16 @@ class MainActivity : Activity() {
         dialog.setContentView(container)
         dialog.setCancelable(false)
 
-        dialog.window?.setBackgroundDrawable(
-            android.graphics.drawable.ColorDrawable(
-                if (darkMode) surfaceDark else Color.WHITE
-            )
-        )
-
         extractionDialog = dialog
         extractionProgress = progress
         extractionTitle = title
         extractionDetails = details
 
         dialog.show()
+
+        dialog.window?.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        )
 
         dialog.window?.setLayout(
             (resources.displayMetrics.widthPixels * 0.86f).toInt(),
