@@ -11,7 +11,6 @@ android {
         applicationId = "com.example.uepakexplorer"
         minSdk = 26
         targetSdk = 36
-
         versionCode = 3
         versionName = "1.0.0"
 
@@ -27,31 +26,36 @@ android {
     signingConfigs {
         create("release") {
             val keystoreFile = providers.environmentVariable("KEYSTORE_FILE").orNull
-                ?: error("KEYSTORE_FILE is not set. Official releases must provide the private keystore.")
-
             val keystorePassword = providers.environmentVariable("KEYSTORE_PASSWORD").orNull
-                ?: error("KEYSTORE_PASSWORD is not set. Official releases must provide the keystore password.")
-
             val keyAlias = providers.environmentVariable("KEY_ALIAS").orNull
-                ?: error("KEY_ALIAS is not set. Official releases must provide the key alias.")
 
-            val releaseKeystore = file(keystoreFile)
+            if (keystoreFile != null && keystorePassword != null && keyAlias != null) {
+                val releaseKeystore = file(keystoreFile)
 
-            if (!releaseKeystore.isFile) {
-                error("Release keystore does not exist: $keystoreFile")
+                if (!releaseKeystore.isFile) {
+                    error("Release keystore does not exist: $keystoreFile")
+                }
+
+                storeFile = releaseKeystore
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                keyPassword = keystorePassword
+                storeType = "PKCS12"
             }
-
-            storeFile = releaseKeystore
-            storePassword = keystorePassword
-            this.keyAlias = keyAlias
-            keyPassword = keystorePassword
-            storeType = "PKCS12"
         }
     }
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            val hasReleaseSigning =
+                providers.environmentVariable("KEYSTORE_FILE").orNull != null &&
+                providers.environmentVariable("KEYSTORE_PASSWORD").orNull != null &&
+                providers.environmentVariable("KEY_ALIAS").orNull != null
+
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+
             isMinifyEnabled = false
         }
     }
@@ -89,3 +93,29 @@ tasks.named("preBuild") {
 android.sourceSets["main"].jniLibs.srcDir(
     "$buildDir/generated/jniLibs"
 )
+
+tasks.register("verifyReleaseSigning") {
+    doLast {
+        val required = listOf(
+            "KEYSTORE_FILE",
+            "KEYSTORE_PASSWORD",
+            "KEY_ALIAS"
+        )
+
+        val missing = required.filter {
+            System.getenv(it).isNullOrBlank()
+        }
+
+        if (missing.isNotEmpty()) {
+            error(
+                "Official release signing is not configured. Missing: ${missing.joinToString()}"
+            )
+        }
+    }
+}
+
+tasks.matching {
+    it.name == "preReleaseBuild"
+}.configureEach {
+    dependsOn("verifyReleaseSigning")
+}
