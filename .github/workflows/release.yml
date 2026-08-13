@@ -56,16 +56,27 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/uepak-explorer-release.p12"
           chmod 600 "$RUNNER_TEMP/uepak-explorer-release.p12"
 
+          if [ ! -s "$RUNNER_TEMP/uepak-explorer-release.p12" ]; then
+            echo "ERROR: Keystore was not restored."
+            exit 1
+          fi
+
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/uepak-explorer-release.p12" >> "$GITHUB_ENV"
+
+          echo "[OK] Release keystore restored"
+
       # ---------------------------------------------------
       # Build signed release APK
       # ---------------------------------------------------
 
       - name: Build signed release APK
         env:
-          KEYSTORE_FILE: ${{ runner.temp }}/uepak-explorer-release.p12
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          echo "[OK] KEYSTORE_FILE=$KEYSTORE_FILE"
+          test -s "$KEYSTORE_FILE"
+
           gradle :app:assembleRelease --no-daemon
 
       # ---------------------------------------------------

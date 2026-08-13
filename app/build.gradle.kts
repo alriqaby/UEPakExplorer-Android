@@ -27,19 +27,19 @@ android {
     signingConfigs {
         create("release") {
             val keystoreFile = System.getenv("KEYSTORE_FILE")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-            val keyAlias = System.getenv("KEY_ALIAS")
+                ?: error("KEYSTORE_FILE is not set")
 
-            if (!keystoreFile.isNullOrBlank() &&
-                !keystorePassword.isNullOrBlank() &&
-                !keyAlias.isNullOrBlank()
-            ) {
-                storeFile = file(keystoreFile)
-                storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                keyPassword = keystorePassword
-                storeType = "PKCS12"
-            }
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: error("KEYSTORE_PASSWORD is not set")
+
+            val keyAlias = System.getenv("KEY_ALIAS")
+                ?: error("KEY_ALIAS is not set")
+
+            storeFile = file(keystoreFile)
+            storePassword = keystorePassword
+            this.keyAlias = keyAlias
+            keyPassword = keystorePassword
+            storeType = "PKCS12"
         }
     }
 
