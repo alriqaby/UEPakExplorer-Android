@@ -11,31 +11,75 @@ android {
         applicationId = "com.example.uepakexplorer"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
-        ndk { abiFilters += listOf("arm64-v8a") }
+
+        versionCode = 3
+        versionName = "1.0.0"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
-    buildFeatures { buildConfig = true }
+    buildFeatures {
+        buildConfig = true
+    }
 
-buildTypes {
-    getByName("release") {
-        signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("KEYSTORE_FILE")
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+            val keyAlias = System.getenv("KEY_ALIAS")
+
+            if (!keystoreFile.isNullOrBlank() &&
+                !keystorePassword.isNullOrBlank() &&
+                !keyAlias.isNullOrBlank()
+            ) {
+                storeFile = file(keystoreFile)
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                keyPassword = keystorePassword
+                storeType = "PKCS12"
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }
-    packaging { jniLibs { useLegacyPackaging = false } }
-}
 
-kotlin { jvmToolchain(17) }
+kotlin {
+    jvmToolchain(17)
+}
 
 tasks.register<Exec>("buildRustArm64") {
     workingDir(project.file("src/main/rust"))
+
     commandLine(
-        "cargo", "ndk", "-t", "arm64-v8a",
-        "-o", project.file("$buildDir/generated/jniLibs").absolutePath,
-        "build", "--release"
+        "cargo",
+        "ndk",
+        "-t",
+        "arm64-v8a",
+        "-o",
+        project.file("$buildDir/generated/jniLibs").absolutePath,
+        "build",
+        "--release"
     )
 }
 
-tasks.named("preBuild") { dependsOn("buildRustArm64") }
-android.sourceSets["main"].jniLibs.srcDir("$buildDir/generated/jniLibs")
+tasks.named("preBuild") {
+    dependsOn("buildRustArm64")
+}
+
+android.sourceSets["main"].jniLibs.srcDir(
+    "$buildDir/generated/jniLibs"
+)
