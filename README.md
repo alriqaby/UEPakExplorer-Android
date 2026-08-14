@@ -1,39 +1,74 @@
+<div align="center">
+
 # UEPak Explorer
 
-A modern Android application for exploring Unreal Engine `.pak` archives directly on Android.
+### Android Unreal Engine PAK Explorer
 
-## Features
+A modern, lightweight Android application for exploring Unreal Engine `.pak` archives directly on Android — without root or external runtimes.
 
-- 📦 Open and inspect Unreal Engine `.pak` files
+[![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://www.android.com/)
+[![ARM64](https://img.shields.io/badge/Architecture-ARM64-blue)](https://developer.android.com/ndk/guides/abis)
+[![Latest Release](https://img.shields.io/github/v/release/alriqaby/UEPakExplorer-Android?label=Latest%20Release)](https://github.com/alriqaby/UEPakExplorer-Android/releases/latest)
+[![License](https://img.shields.io/github/license/alriqaby/UEPakExplorer-Android)](https://github.com/alriqaby/UEPakExplorer-Android/blob/main/LICENSE)
+
+**[⬇️ Download UEPak Explorer v1.0.0](https://github.com/alriqaby/UEPakExplorer-Android/releases/tag/v1.0.0)**
+
+</div>
+
+---
+
+## ✨ Features
+
+- 📦 Open and inspect Unreal Engine `.pak` archives
 - 🔎 Search files inside PAK archives
-- 📂 Browse folders and file paths
-- ☑️ Select multiple files
+- 📂 Browse folders and full file paths
+- ☑️ Select multiple files at once
 - 📤 Extract selected files
-- 🧩 View common Unreal Engine assets and localization files
+- 🧩 Inspect common Unreal Engine assets and localization files
 - ⚡ Native ARM64 support
-- 🔐 Works without root
-- 📱 Designed specifically for modern Android devices
+- 🔐 Works without root access
+- 📱 Built for modern Android devices
 
-## Requirements
+## 📱 Requirements
 
 - Android 8.0 or later
 - ARM64 device recommended
 - No root access required
+- No Windows, Winlator, or external runtime required
 
-## Download
+## ⬇️ Download
 
-### Latest Release
+GitHub Releases is the **official download location** for UEPak Explorer.
 
-**UEPak Explorer v1.0.0**
+### Latest Release — v1.0.0
 
-Download the latest APK from the project's GitHub Releases page.
+**[Download UEPak Explorer v1.0.0](https://github.com/alriqaby/UEPakExplorer-Android/releases/tag/v1.0.0)**
 
-## Version
+APK: `UEPakExplorer-v1.0.0-arm64-v8a.apk`
 
-**v1.0.0**
+For future versions, always use the **[Latest Release](https://github.com/alriqaby/UEPakExplorer-Android/releases/latest)** page.
 
-This is the first official release of UEPak Explorer.
+## 🛠️ Installation
 
-## License
+1. Download the APK from the official Releases page.
+2. Install the APK on your Android device.
+3. Open UEPak Explorer.
+4. Select a `.pak` archive and start exploring.
 
-See the repository license for details.
+## 📌 Version
+
+**v1.0.0** — First official release.
+
+## 📄 License
+
+See the [LICENSE](LICENSE) file for license details.
+
+---
+
+<div align="center">
+
+**UEPak Explorer** · Android PAK Explorer
+
+[Download](https://github.com/alriqaby/UEPakExplorer-Android/releases/latest) · [Releases](https://github.com/alriqaby/UEPakExplorer-Android/releases) · [Source Code](https://github.com/alriqaby/UEPakExplorer-Android)
+
+</div>
