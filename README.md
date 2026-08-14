@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/app_icon.png" alt="UEPak Explorer" width="140">
+
 # UEPak Explorer
 
 ### Android Unreal Engine PAK Explorer
